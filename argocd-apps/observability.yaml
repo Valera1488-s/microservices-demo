@@ -13,6 +13,10 @@ spec:
       parameters:
         - name: prometheusOperator.admissionWebhooks.enabled
           value: "false"
+        - name: prometheusOperator.tls.enabled
+          value: "false"
+        - name: prometheusOperator.admissionWebhooks.patch.enabled
+          value: "false"
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
