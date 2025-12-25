@@ -10,13 +10,17 @@ spec:
     targetRevision: 45.7.1
     chart: kube-prometheus-stack
     helm:
-      parameters:
-        - name: prometheusOperator.admissionWebhooks.enabled
-          value: "false"
-        - name: prometheusOperator.tls.enabled
-          value: "false"
-        - name: prometheusOperator.admissionWebhooks.patch.enabled
-          value: "false"
+      values: |
+        prometheusOperator:
+          admissionWebhooks:
+            enabled: false
+            patch:
+              enabled: false
+          tls:
+            enabled: false
+          # Самое важное: переопределяем тома, чтобы он не искал секрет
+          volumes: []
+          volumeMounts: []
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
