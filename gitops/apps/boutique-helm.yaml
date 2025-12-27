@@ -1,0 +1,113 @@
+# ============================================================================
+# ARGOCD APPLICATION: BOUTIQUE (HELM)
+# Назначение: Развернуть Online Boutique через Helm-чарт
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+# ↑ Версия API Kubernetes для ArgoCD Applications
+#   "v1alpha1" - это версия API (как у Pod'ов "v1", StatefulSet "apps/v1")
+#   ArgoCD использует кастомный тип "Application" (это CRD)
+
+kind: Application
+# ↑ Тип ресурса в Kubernetes
+#   Мы создаём "Application" (это ArgoCD-специфичный тип)
+#   Когда ArgoCD видит этот файл, он понимает: "о, нужно что-то развернуть"
+
+metadata:
+  # ↑ Метаданные (как у всех K8s объектов)
+  
+  name: boutique-helm
+  # ↑ Имя приложения (что увидим в ArgoCD UI)
+  #   "boutique-helm" - имя, которое человек видит в интерфейсе
+  #   Когда зайдём в ArgoCD, увидим плитку "boutique-helm"
+  
+  namespace: argocd
+  # ↑ В каком namespace жить самому приложению (в арго, не в boutique!)
+  #   ArgoCD сам хранит "заявки" в namespace argocd
+  #   А вот манифесты, которые оно развернёт, пойдут в namespace "boutique" (см. ниже)
+
+spec:
+  # ↑ Спецификация (что должно произойти)
+  
+  project: default
+  # ↑ ArgoCD project (для организации прав доступа)
+  #   "default" - проект по умолчанию (можно потом создать свои проекты)
+  #   На собесе объяснишь: "проект ограничивает, какие намспейсы может деплоить приложение"
+
+  source:
+    # ↑ ИСТОЧНИК: откуда брать манифесты?
+    
+    repoURL: https://github.com/Valera1488-s/microservices-demo.git
+    # ↑ URL твоего GitHub репозитория
+    #   ArgoCD клонирует этот репо и смотрит, что там лежит
+    #   Это ТОТ репо, куда ты пушил ветку gitops-lab
+    
+    targetRevision: gitops-lab
+    # ↑ Какую ветку Git смотреть?
+    #   "gitops-lab" - ветка, где лежат наши манифесты
+    #   ArgoCD будет читать только из этой ветки (не из main)
+    #   Это "изоляция" - в main может быть что-то сломанное, а мы смотрим в gitops-lab
+    
+    path: gitops/manifests/boutique/helm-chart
+    # ↑ Путь внутри репо, где лежит Helm-чарт
+    #   "gitops/manifests/boutique/helm-chart" - путь к папке с Chart.yaml
+    #   ArgoCD найдет файл Chart.yaml в этой папке и поймет: "это Helm-чарт"
+    
+    helm:
+      # ↑ Мы используем Helm для развертывания (не plain YAML, не Kustomize)
+      #   ArgoCD поддерживает три способа развертывания:
+      #   1. Plain YAML (kubectl apply)
+      #   2. Helm (helm install)
+      #   3. Kustomize (kustomize build)
+      #   Мы выбрали Helm
+      
+      parameters:
+        # ↑ ПАРАМЕТРЫ HELM (переменные, которые будут переданы чарту)
+        #   Эквивалент: helm install --set key=value --set key2=value2
+        
+        - name: replicaCount
+          # ↑ Имя параметра в values.yaml чарта
+          #   В файле helm-chart/values.yaml есть строка "replicaCount: 1"
+          #   Мы переопределяем её здесь
+          
+          value: "1"
+          # ↑ Значение параметра
+          #   "1" - количество реплик для каждого сервиса
+          #   На локальной машине 1 достаточно (на продакшене был бы 2-3)
+
+  destination:
+    # ↑ КУДА развертывать манифесты?
+    
+    server: https://kubernetes.default.svc
+    # ↑ Адрес API сервера кластера
+    #   "https://kubernetes.default.svc" - это "текущий кластер" (внутренний адрес)
+    #   ArgoCD запущен В ЭТОМ кластере, так что он обращается к себе сам
+    
+    namespace: boutique
+    # ↑ В каком namespace развертывать приложение?
+    #   Все pod'ы Online Boutique будут в namespace "boutique"
+    #   (отдельно от ArgoCD, который в "argocd")
+
+  syncPolicy:
+    # ↑ ПОЛИТИКА СИНХРОНИЗАЦИИ: как часто проверять Git?
+    
+    automated:
+      # ↑ Автоматическая синхронизация (не ручная)
+      
+      prune: true
+      # ↑ УДАЛЯТЬ ресурсы, если их нет в Git
+      #   Если ты удалишь манифест из Git, ArgoCD удалит его из кластера
+      #   На собесе: "это гарантирует, что кластер всегда соответствует Git"
+      
+      selfHeal: true
+      # ↑ АВТОМАТИЧЕСКИ ИСПРАВЛЯТЬ дрифты (drift)
+      #   Если кто-то вручную изменит pod в кластере (kubectl edit), ArgoCD вернет как в Git
+      #   На собесе: "GitOps гарантирует, что кластер - это отражение Git"
+    
+    syncOptions:
+      # ↑ ОПЦИИ синхронизации (специальные флаги)
+      
+      - CreateNamespace=true
+      # ↑ Автоматически создавать namespace "boutique", если его нет
+      #   Без этого, если namespace не существует, деплой упадет
+      #   С этим ArgoCD сам создаст namespace перед развертыванием манифестов
